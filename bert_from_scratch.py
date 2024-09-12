@@ -78,8 +78,6 @@ class CTransformerEncoder(nn.Module):
         return output
 
 
-
-
 class CEmbedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, padding_idx=None, _weight=None, _freeze=False):
         super().__init__()
@@ -114,7 +112,7 @@ class CEmbedding(nn.Module):
 
 
 
-class BERTEmbedding(nn.Module):
+class CBERTEmbedding(nn.Module):
     def __init__(self, vocab_size, n_segments, max_len, embed_dim, dropout):
         super().__init__()
         self.tok_embed = CEmbedding(vocab_size, embed_dim)
@@ -132,9 +130,9 @@ class BERTEmbedding(nn.Module):
 class BERT(nn.Module):
     def __init__(self, vocab_size, n_segments, max_len, embed_dim, n_layers, attn_heads, dropout):
         super().__init__()
-        self.embedding = BERTEmbedding(vocab_size, n_segments, max_len, embed_dim, dropout)
-        self.encoder_layer = nn.TransformerEncoderLayer(embed_dim, attn_heads, embed_dim*4)
-        self.encoder_block = nn.TransformerEncoder(self.encoder_layer, n_layers)
+        self.embedding = CBERTEmbedding(vocab_size, n_segments, max_len, embed_dim, dropout)
+        self.encoder_layer = nn.CTransformerEncoderLayer(embed_dim, attn_heads, embed_dim*4)
+        self.encoder_block = nn.CTransformerEncoder(self.encoder_layer, n_layers)
 
     def forward(self, seq, seg):
         out = self.embedding(seq, seg)
