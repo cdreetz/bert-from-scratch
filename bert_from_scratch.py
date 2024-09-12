@@ -3,6 +3,83 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.nn.parameter import Parameter
 
+class CTransformerEncoderLayer(nn.Module):
+    def __init__(
+        self, 
+        embed_dim, 
+        attn_heads, 
+        dropout, 
+        bias=True, 
+        norm_first=False, 
+        layer_norm_eps=1e-5,
+        activation=F.relu,
+        batch_first=False,
+    ):
+        super().__init__()
+        self.d_model = embed_dim
+        self.nhead = attn_heads
+        self.dim_feedforward = embed_dim * 4
+        self.self_attn = MultiheadAttention(self.d_model, self.nhead, dropout)
+        self.linear1 = Linear(self.d_model, self.dim_feedforward)
+        self.dropout = Dropout(dropout)
+        self.linear2 = Linear(self.dim_feedforward, self.d_model, bias=bias)
+
+        self.norm_first = norm_first
+        self.norm1 = LayerNorm(self.d_model, layer_norm_eps, bias=bias)
+        self.norm2 = LayerNorm(self.d_model, layer_norm_eps, bias=bias)
+        self.dropout1 = Dropout(dropout)
+        self.dropout2 = Dropout(dropout)
+
+    def forward(self, src, src_mask=None, src_key_padding_mask=None, is_casual=False):
+        x = src
+        x = self.norm1(x + self._sa_block(x, src_mask, src_key_padding_mask, is_casual))
+        x = self.norm2(x + self._ff_block(x))
+
+    # self-attention block
+    def _sa_block(self, x, attn_mask, key_padding_mask, is_casual=False):
+        x = self.self_attn(x, x, x, 
+            attn_mask=attn_mask, 
+            key_padding_mask=key_padding_mask, 
+            need_weights=False,
+            is_casual=is_casual
+        )[0]
+        return self.dropout1(x)
+
+    # feed-forward block
+    def _ff_block(self, x):
+        x = self.Linear2(self.dropout(self.activation(self.linear1(x))))
+        return self.dropout2(x)
+
+
+
+class CTransformerEncoder(nn.Module):
+    def __init__(
+        self, 
+        encoder_layer: "CTransformerEncoderLayer", 
+        num_layers, 
+        enable_nested_tensor=True, 
+        mask_check=True
+    ):
+        super().__init__()
+        self.layers = _get_clones(encoder_layer, num_layers)
+        self.num_layers = num_layers
+        self.norm = None
+        self.enable_nested_tensor = enable_nested_tensor
+        self.use_nested_tensor = enable_nested_tensor
+        self.mask_check = mask_check
+        enc_layer = "encoder_layer"
+
+    def forward(self, src, mask=None, src_key_padding_mask=None, is_casual=None):
+        output = src
+
+        for mod in self.layers:
+            output = mod(output)
+
+        return output
+
+
+
+
 class CEmbedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, padding_idx=None, _weight=None, _freeze=False):
         super().__init__()
